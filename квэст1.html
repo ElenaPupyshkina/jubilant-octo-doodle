@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Космическая станция | Квест</title>
+    <style>
+        /* Основной фон */
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            background-color: #282C34;
+            color: white;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        /* Контейнер для холста */
+        .container {
+            display: inline-block;
+            position: relative;
+            width: fit-content;
+            height: fit-content;
+            user-select: none;
+        }
+        
+        /* Холст */
+        canvas {
+            display: block;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+            background-color: transparent;
+        }
+        
+        /* Кнопка сброса */
+        button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            font-size: 16px;
+            color: white;
+            background-color: #61DAFB;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        
+        /* Заголовок и пояснения */
+        h1, p {
+            color: white;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Кодовый замок</h1>
+    <p>Соедини точки нужным образом.</p>
+    <canvas id="lockCanvas" width="300" height="300"></canvas>
+    <button onclick="resetLock()">Сбросить</button>
+</div>
+
+<script>
+    const canvas = document.getElementById('lockCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // Координаты точек
+    const points = [
+        { x: canvas.width / 3, y: canvas.height / 3 },
+        { x: canvas.width / 2, y: canvas.height / 3 },
+        { x: canvas.width * 2 / 3, y: canvas.height / 3 },
+        { x: canvas.width / 3, y: canvas.height / 2 },
+        { x: canvas.width / 2, y: canvas.height / 2 },
+        { x: canvas.width * 2 / 3, y: canvas.height / 2 },
+        { x: canvas.width / 3, y: canvas.height * 2 / 3 },
+        { x: canvas.width / 2, y: canvas.height * 2 / 3 },
+        { x: canvas.width * 2 / 3, y: canvas.height * 2 / 3 }
+    ];
+
+    // Ширина и высота холста равна ширине контейнера
+    canvas.width = canvas.parentNode.offsetWidth || 300;
+    canvas.height = canvas.parentNode.offsetHeight || 300;
+
+    let drawing = false;
+    let lastIndex = null;
+    let currentPath = [];
+
+    // Новый метод connectDots с неоновым свечением
+    function connectDots(from, to) {
+        const glowLineColor = 'rgba(0, 255, 255, 0.8)'; // Яркий голубой оттенок
+        const glowSize = 5; // Размер размытого контура
+
+        const fromPoint = points[from];
+        const toPoint = points[to];
+
+        ctx.save();
+        ctx.filter = 'drop-shadow(0 0 5px #fff) drop-shadow(0 0 10px #0FF)';
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = glowLineColor;
+        ctx.beginPath();
+        ctx.moveTo(fromPoint.x, fromPoint.y);
+        ctx.lineTo(toPoint.x, toPoint.y);
+        ctx.stroke();
+        ctx.restore();
+
+        ctx.globalCompositeOperation = 'lighter';
+        for (let i = 0; i <= glowSize; i++) {
+            ctx.shadowBlur = i * 2;
+            ctx.shadowColor = glowLineColor;
+            ctx.beginPath();
+            ctx.moveTo(fromPoint.x, fromPoint.y);
+            ctx.lineTo(toPoint.x, toPoint.y);
+            ctx.stroke();
+        }
+
+        ctx.globalCompositeOperation = 'source-over';
+    }
+
+    // Фигуры правильные (пример)
+    const correctPaths = [[0, 3, 6, 7, 4, 5, 2]];
+
+    // Установка начального состояния
+    function resetLock() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        drawDots();
+        currentPath = [];
+        lastIndex = null;
+    }
+
+    // Отображение точек на холсте
+    function drawDots() {
+        ctx.beginPath();
+        ctx.fillStyle = '#ffffff';
+        points.forEach(p => {
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, 10, 0, Math.PI * 2);
+            ctx.fill();
+        });
+    }
+
+    // Улучшенная функция нахождения ближайшей точки
+    function findClosestPoint(x, y) {
+        let minDistance = Infinity;
+        let closestIndex = undefined;
+        points.forEach((point, index) => {
+            const distance = Math.hypot(point.x - x, point.y - y);
+            if (distance < 40 && distance < minDistance) { // Более широкий диапазон допуска
+                minDistance = distance;
+                closestIndex = index;
+            }
+        });
+        return closestIndex;
+    }
+
+    // Обновленная проверка решения (не зависит от порядка)
+    function checkSolution(path) {
+        const solutionSet = new Set(correctPaths.flat()); // Набор правильных точек
+        const inputSet = new Set(path);                  // Набор введенных точек
+        const isCorrect = [...inputSet].every(value => solutionSet.has(value)); // Проверка наличия всех введенных точек среди правильных
+        if (isCorrect) alert("Вы успешно открыли замок!");
+        else alert("Неправильно! Попробуйте снова.");
+    }
+
+    // Начинаем рисовать
+    function startDrawing(event) {
+        event.preventDefault();
+        drawing = true;
+        handleMove(event);
+    }
+
+    // Заканчиваем рисовать
+    function stopDrawing() {
+        drawing = false;
+        checkSolution(currentPath);
+        resetLock();
+    }
+
+    // Основная логика передвижения
+    function handleMove(event) {
+        if (!drawing) return;
+
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = event.clientX - rect.left;
+        const mouseY = event.clientY - rect.top;
+
+        let closestIndex = findClosestPoint(mouseX, mouseY);
+        if (closestIndex !== undefined && closestIndex !== lastIndex) {
+            if (lastIndex !== null) {
+                connectDots(lastIndex, closestIndex); // Соединяем линии
+                currentPath.push(closestIndex);
+            }
+            lastIndex = closestIndex;
+        }
+    }
+
+    // Инициализация холста
+    window.addEventListener('load', () => {
+        resetLock(); // Изначально рисуем точки
+        canvas.addEventListener('mousedown', startDrawing);
+        canvas.addEventListener('mousemove', handleMove);
+        canvas.addEventListener('mouseup', stopDrawing);
+    });
+</script>
+</body>
+</html>
